@@ -1,84 +1,108 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:orientation="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="12dp">
+        android:orientation="horizontal"
+        android:padding="8dp">
 
         <Button
             android:id="@+id/choose"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Choose photos (select many)" />
-
-        <TextView
-            android:id="@+id/count"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="No photos selected"
-            android:textColor="#FFFFFF" />
-
-        <ImageView
-            android:id="@+id/preview"
-            android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:layout_marginTop="8dp"
-            android:scaleType="fitCenter" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Watermark for all selected photos. Leave date or GPS empty to use each photo's own."
-            android:textColor="#AAAAAA"
-            android:textSize="12sp" />
-
-        <EditText
-            android:id="@+id/fText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Custom text"
-            android:inputType="text" />
-
-        <EditText
-            android:id="@+id/fDate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Date (yyyy-MM-dd HH:mm:ss)"
-            android:inputType="text" />
-
-        <EditText
-            android:id="@+id/fGps"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="GPS (e.g. GPS: 33.573110, -7.589843)"
-            android:inputType="text" />
-
-        <EditText
-            android:id="@+id/fAddress"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Address / location name"
-            android:inputType="text" />
+            android:layout_weight="1"
+            android:text="Add photos" />
 
         <Button
-            android:id="@+id/apply"
-            android:layout_width="match_parent"
+            android:id="@+id/clear"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Apply to all" />
-
-        <TextView
-            android:id="@+id/status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textColor="#FFFFFF" />
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="Clear all" />
     </LinearLayout>
-</ScrollView>
+
+    <TextView
+        android:id="@+id/count"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="6dp"
+        android:textColor="#FFFFFF" />
+
+    <GridView
+        android:id="@+id/grid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:horizontalSpacing="2dp"
+        android:numColumns="3"
+        android:verticalSpacing="2dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="260dp"
+        android:background="#CC000000">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Watermark for all selected photos. Leave date or GPS empty to use each photo's own."
+                android:textColor="#AAAAAA"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/fText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Custom text"
+                android:inputType="text" />
+
+            <EditText
+                android:id="@+id/fDate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Date (yyyy-MM-dd HH:mm:ss)"
+                android:inputType="text" />
+
+            <EditText
+                android:id="@+id/fGps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="GPS (e.g. GPS: 33.573110, -7.589843)"
+                android:inputType="text" />
+
+            <EditText
+                android:id="@+id/fAddress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Address / location name"
+                android:inputType="text" />
+
+            <Button
+                android:id="@+id/apply"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Apply to all" />
+
+            <TextView
+                android:id="@+id/status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="#FFFFFF" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
