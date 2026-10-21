@@ -8,14 +8,61 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:background="#88000000"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <TextView
+            android:id="@+id/gpsStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/flash"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/flip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="Flip"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/recStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="64dp"
+        android:background="#CCB00020"
+        android:paddingStart="12dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/info"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:gravity="end"
-        android:layout_marginBottom="170dp"
+        android:layout_marginBottom="190dp"
         android:background="#88000000"
+        android:gravity="end"
         android:padding="8dp"
         android:textColor="#FFFFFF"
         android:textSize="13sp" />
@@ -25,7 +72,6 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:background="#CC000000"
-        android:gravity="center_horizontal"
         android:orientation="vertical"
         android:padding="12dp">
 
@@ -40,23 +86,34 @@
             android:textColorHint="#AAAAAA" />
 
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:orientation="horizontal">
 
             <Button
-                android:id="@+id/capture"
-                android:layout_width="wrap_content"
+                android:id="@+id/modeBtn"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="Take photo" />
+                android:layout_weight="1"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/shutter"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1.4"
+                android:textSize="13sp" />
 
             <Button
                 android:id="@+id/gallery"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:text="Gallery" />
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                android:text="Gallery"
+                android:textSize="13sp" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>
