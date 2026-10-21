@@ -2,20 +2,14 @@ package com.nizar.geostamp
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Matrix
-import android.graphics.Paint
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
-import android.provider.MediaStore
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -30,6 +24,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -72,6 +67,9 @@ class MainActivity : AppCompatActivity() {
         })
 
         findViewById<Button>(R.id.capture).setOnClickListener { takePhoto() }
+        findViewById<Button>(R.id.edit).setOnClickListener {
+            startActivity(Intent(this, EditActivity::class.java))
+        }
 
         val needed = arrayOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION)
         if (needed.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) {
@@ -138,26 +136,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun stampLines(time: Date): List<String> {
-        val lines = mutableListOf<String>()
-        val t = customText.text.toString().trim()
-        if (t.isNotEmpty()) lines += t
-        lines += SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(time)
+    /** The four stamp fields: custom text, date, GPS, address. */
+    private fun fields(time: Date): List<String> {
         val l = location
-        lines += if (l != null) String.format(Locale.US, "GPS: %.6f, %.6f", l.latitude, l.longitude)
-                 else "GPS: waiting for fix..."
-        if (address.isNotEmpty()) lines += address
-        return lines
+        return listOf(
+            customText.text.toString().trim(),
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(time),
+            if (l != null) String.format(Locale.US, "GPS: %.6f, %.6f", l.latitude, l.longitude)
+            else "GPS: waiting for fix...",
+            address
+        )
     }
 
     private fun updateInfo() {
-        info.text = stampLines(Date()).joinToString("\n")
+        info.text = fields(Date()).filter { it.isNotEmpty() }.joinToString("\n")
     }
 
     private fun takePhoto() {
         val capture = imageCapture ?: return
         val time = Date()
-        val lines = stampLines(time)
+        val f = fields(time)
         capture.takePicture(ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
@@ -165,8 +163,11 @@ class MainActivity : AppCompatActivity() {
                     val raw = image.toBitmap()
                     image.close()
                     thread {
-                        val stamped = stamp(raw, rotation, lines)
-                        val ok = save(stamped, time)
+                        val key = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(time)
+                        val clean = Stamper.rotate(raw, rotation)
+                        saveOriginal(key, clean, f)
+                        val stamped = Stamper.draw(clean, f.filter { it.isNotEmpty() })
+                        val ok = Stamper.saveToGallery(this@MainActivity, stamped, "GeoStamp_$key.jpg")
                         runOnUiThread {
                             Toast.makeText(
                                 this@MainActivity,
@@ -183,45 +184,10 @@ class MainActivity : AppCompatActivity() {
             })
     }
 
-    private fun stamp(src: Bitmap, rotation: Int, lines: List<String>): Bitmap {
-        val m = Matrix().apply { postRotate(rotation.toFloat()) }
-        val rotated = Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
-        val bmp = rotated.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(bmp)
-
-        val textSize = bmp.width / 30f
-        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            this.textSize = textSize
-            setShadowLayer(4f, 2f, 2f, Color.BLACK)
-        }
-        val bg = Paint().apply { color = Color.argb(140, 0, 0, 0) }
-
-        val pad = textSize * 0.6f
-        val lineH = textSize * 1.25f
-        val boxH = lines.size * lineH + pad * 2
-        val boxW = (lines.maxOf { text.measureText(it) } + pad * 2).coerceAtMost(bmp.width.toFloat())
-        val top = bmp.height - boxH
-        canvas.drawRect(0f, top, boxW, bmp.height.toFloat(), bg)
-        lines.forEachIndexed { i, s ->
-            canvas.drawText(s, pad, top + pad + lineH * (i + 1) - textSize * 0.25f, text)
-        }
-        return bmp
-    }
-
-    private fun save(bmp: Bitmap, time: Date): Boolean {
-        val name = "GeoStamp_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(time) + ".jpg"
-        val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, name)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/GeoStamp")
-        }
-        val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
-        return try {
-            contentResolver.openOutputStream(uri)?.use { bmp.compress(Bitmap.CompressFormat.JPEG, 95, it) }
-            true
-        } catch (_: Exception) {
-            false
-        }
+    /** Keeps an unstamped copy + the stamp fields so the stamp can be edited later. */
+    private fun saveOriginal(key: String, clean: android.graphics.Bitmap, f: List<String>) {
+        val dir = File(filesDir, "originals").apply { mkdirs() }
+        File(dir, "$key.jpg").outputStream().use { clean.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, it) }
+        File(dir, "$key.txt").writeText(f.joinToString("\n"))
     }
 }
