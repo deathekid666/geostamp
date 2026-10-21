@@ -17,7 +17,7 @@ object Stamper {
         return Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
     }
 
-    /** Returns a new bitmap with the lines drawn bottom-left. The input is not modified. */
+    /** Returns a new bitmap with the lines drawn bottom-right. The input is not modified. */
     fun draw(src: Bitmap, lines: List<String>): Bitmap {
         val bmp = src.copy(Bitmap.Config.ARGB_8888, true)
         if (lines.isEmpty()) return bmp
@@ -27,6 +27,7 @@ object Stamper {
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             this.textSize = textSize
+            textAlign = Paint.Align.RIGHT
             setShadowLayer(4f, 2f, 2f, Color.BLACK)
         }
         val bg = Paint().apply { color = Color.argb(140, 0, 0, 0) }
@@ -36,9 +37,10 @@ object Stamper {
         val boxH = lines.size * lineH + pad * 2
         val boxW = (lines.maxOf { text.measureText(it) } + pad * 2).coerceAtMost(bmp.width.toFloat())
         val top = bmp.height - boxH
-        canvas.drawRect(0f, top, boxW, bmp.height.toFloat(), bg)
+        val w = bmp.width.toFloat()
+        canvas.drawRect(w - boxW, top, w, bmp.height.toFloat(), bg)
         lines.forEachIndexed { i, s ->
-            canvas.drawText(s, pad, top + pad + lineH * (i + 1) - textSize * 0.25f, text)
+            canvas.drawText(s, w - pad, top + pad + lineH * (i + 1) - textSize * 0.25f, text)
         }
         return bmp
     }
