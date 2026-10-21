@@ -1,4 +1,4 @@
-package com.nizar.geostamp
+package com.nizar.geostamp.render
 
 import android.content.ContentValues
 import android.content.Context
@@ -9,6 +9,7 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.provider.MediaStore
 
+/** Draws the watermark and writes finished photos to the system gallery. */
 object Stamper {
 
     fun rotate(src: Bitmap, degrees: Int): Bitmap {

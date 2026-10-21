@@ -12,7 +12,7 @@
         android:label="GeoStamp Camera"
         android:theme="@style/Theme.GeoStamp">
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.MainActivity"
             android:exported="true"
             android:screenOrientation="portrait">
             <intent-filter>
@@ -21,7 +21,15 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".EditActivity"
+            android:name=".ui.GalleryActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".ui.BatchActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".ui.EditActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
     </application>

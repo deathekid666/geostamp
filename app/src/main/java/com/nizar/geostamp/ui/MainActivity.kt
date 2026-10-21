@@ -1,4 +1,4 @@
-package com.nizar.geostamp
+package com.nizar.geostamp.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -24,7 +24,10 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.io.File
+import com.nizar.geostamp.R
+import com.nizar.geostamp.data.PhotoStore
+import com.nizar.geostamp.data.StampFields
+import com.nizar.geostamp.render.Stamper
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -67,8 +70,8 @@ class MainActivity : AppCompatActivity() {
         })
 
         findViewById<Button>(R.id.capture).setOnClickListener { takePhoto() }
-        findViewById<Button>(R.id.edit).setOnClickListener {
-            startActivity(Intent(this, EditActivity::class.java))
+        findViewById<Button>(R.id.gallery).setOnClickListener {
+            startActivity(Intent(this, GalleryActivity::class.java))
         }
 
         val needed = arrayOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -136,26 +139,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** The four stamp fields: custom text, date, GPS, address. */
-    private fun fields(time: Date): List<String> {
+    private fun currentFields(time: Date): StampFields {
         val l = location
-        return listOf(
-            customText.text.toString().trim(),
-            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(time),
-            if (l != null) String.format(Locale.US, "GPS: %.6f, %.6f", l.latitude, l.longitude)
-            else "GPS: waiting for fix...",
-            address
+        return StampFields(
+            text = customText.text.toString().trim(),
+            date = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(time),
+            gps = if (l != null) String.format(Locale.US, "GPS: %.6f, %.6f", l.latitude, l.longitude)
+                  else "GPS: waiting for fix...",
+            address = address
         )
     }
 
     private fun updateInfo() {
-        info.text = fields(Date()).filter { it.isNotEmpty() }.joinToString("\n")
+        info.text = currentFields(Date()).lines().joinToString("\n")
     }
 
     private fun takePhoto() {
         val capture = imageCapture ?: return
-        val time = Date()
-        val f = fields(time)
+        val fields = currentFields(Date())
         capture.takePicture(ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
@@ -163,17 +164,12 @@ class MainActivity : AppCompatActivity() {
                     val raw = image.toBitmap()
                     image.close()
                     thread {
-                        val key = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(time)
                         val clean = Stamper.rotate(raw, rotation)
-                        saveOriginal(key, clean, f)
-                        val stamped = Stamper.draw(clean, f.filter { it.isNotEmpty() })
-                        val ok = Stamper.saveToGallery(this@MainActivity, stamped, "GeoStamp_$key.jpg")
+                        val key = PhotoStore.newKey()
+                        PhotoStore.saveOriginal(this@MainActivity, key, clean)
+                        PhotoStore.saveResult(this@MainActivity, key, clean, fields)
                         runOnUiThread {
-                            Toast.makeText(
-                                this@MainActivity,
-                                if (ok) "Saved to Pictures/GeoStamp" else "Save failed",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            Toast.makeText(this@MainActivity, "Saved (app gallery + Pictures/GeoStamp)", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -182,12 +178,5 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, "Capture error: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             })
-    }
-
-    /** Keeps an unstamped copy + the stamp fields so the stamp can be edited later. */
-    private fun saveOriginal(key: String, clean: android.graphics.Bitmap, f: List<String>) {
-        val dir = File(filesDir, "originals").apply { mkdirs() }
-        File(dir, "$key.jpg").outputStream().use { clean.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, it) }
-        File(dir, "$key.txt").writeText(f.joinToString("\n"))
     }
 }
