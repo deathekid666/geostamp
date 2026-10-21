@@ -15,7 +15,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Gallery"
+            android:text="Gallery  (import:)"
             android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold" />
@@ -24,7 +24,14 @@
             android:id="@+id/importPhotos"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Import photos" />
+            android:text="Photos" />
+
+        <Button
+            android:id="@+id/importVideo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="Video" />
     </LinearLayout>
 
     <FrameLayout

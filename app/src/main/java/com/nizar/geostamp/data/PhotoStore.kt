@@ -3,6 +3,7 @@ package com.nizar.geostamp.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
 import com.nizar.geostamp.render.Stamper
 import java.io.File
 import java.text.SimpleDateFormat
@@ -11,14 +12,16 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * App-private storage behind the in-app gallery.
+ * App-private storage behind the in-app gallery (photos and videos).
  *
  *   originals/<key>.jpg   clean photo, no watermark (so it can be re-stamped)
  *   stamped/<id>.jpg      finished photo with watermark (one per gallery entry)
- *   stamped/<id>.txt      line 0 = original key, lines 1-4 = text/date/gps/address
+ *   stamped/<id>.mp4      finished video with watermark
+ *   stamped/<id>.txt      line 0 = original key (empty for videos), lines 1-4 = text/date/gps/address
  *   thumbs/<id>.jpg       small preview for the grid
  *
- * Every finished photo is also copied to the system gallery (Pictures/GeoStamp).
+ * Every finished photo and video is also copied to the system gallery
+ * (Pictures/GeoStamp and Movies/GeoStamp).
  */
 object PhotoStore {
     private const val THUMB_SIZE = 360
@@ -29,7 +32,8 @@ object PhotoStore {
         val image: File,
         val thumb: File,
         val originalKey: String,
-        val fields: StampFields
+        val fields: StampFields,
+        val isVideo: Boolean = false
     )
 
     private fun dir(ctx: Context, name: String) = File(ctx.filesDir, name).apply { mkdirs() }
@@ -58,30 +62,55 @@ object PhotoStore {
         }
         File(dir(ctx, "stamped"), "$id.txt")
             .writeText((listOf(originalKey) + fields.serialize()).joinToString("\n"))
-
-        val scale = THUMB_SIZE.toFloat() / maxOf(stamped.width, stamped.height)
-        val thumb = if (scale < 1f)
-            Bitmap.createScaledBitmap(
-                stamped, (stamped.width * scale).toInt().coerceAtLeast(1),
-                (stamped.height * scale).toInt().coerceAtLeast(1), true
-            ) else stamped
-        File(dir(ctx, "thumbs"), "$id.jpg").outputStream().use {
-            thumb.compress(Bitmap.CompressFormat.JPEG, 85, it)
-        }
+        writeThumb(ctx, id, stamped)
 
         Stamper.saveToGallery(ctx, stamped, "GeoStamp_$id.jpg")
         return id
     }
 
+    /** Adds a finished (already watermarked) video to the in-app gallery and the system gallery. */
+    fun saveVideoResult(ctx: Context, videoFile: File, fields: StampFields): String {
+        val id = newKey()
+        val dest = File(dir(ctx, "stamped"), "$id.mp4")
+        if (!videoFile.renameTo(dest)) {
+            videoFile.copyTo(dest, overwrite = true)
+            videoFile.delete()
+        }
+        dest.setLastModified(System.currentTimeMillis())
+        File(dir(ctx, "stamped"), "$id.txt")
+            .writeText((listOf("") + fields.serialize()).joinToString("\n"))
+        VideoInfo.frame(ctx, Uri.fromFile(dest))?.let { writeThumb(ctx, id, it) }
+
+        Stamper.saveVideoToGallery(ctx, dest, "GeoStamp_$id.mp4")
+        return id
+    }
+
+    private fun writeThumb(ctx: Context, id: String, source: Bitmap) {
+        val scale = THUMB_SIZE.toFloat() / maxOf(source.width, source.height)
+        val thumb = if (scale < 1f)
+            Bitmap.createScaledBitmap(
+                source, (source.width * scale).toInt().coerceAtLeast(1),
+                (source.height * scale).toInt().coerceAtLeast(1), true
+            ) else source
+        File(dir(ctx, "thumbs"), "$id.jpg").outputStream().use {
+            thumb.compress(Bitmap.CompressFormat.JPEG, 85, it)
+        }
+    }
+
     /** Newest first. */
     fun list(ctx: Context): List<Item> =
-        dir(ctx, "stamped").listFiles { f -> f.extension == "jpg" }.orEmpty()
+        dir(ctx, "stamped").listFiles { f -> f.extension == "jpg" || f.extension == "mp4" }.orEmpty()
             .sortedByDescending { it.lastModified() }
             .map { toItem(ctx, it.nameWithoutExtension, it) }
 
     fun get(ctx: Context, id: String): Item? {
-        val f = File(dir(ctx, "stamped"), "$id.jpg")
-        return if (f.exists()) toItem(ctx, id, f) else null
+        val jpg = File(dir(ctx, "stamped"), "$id.jpg")
+        val mp4 = File(dir(ctx, "stamped"), "$id.mp4")
+        return when {
+            jpg.exists() -> toItem(ctx, id, jpg)
+            mp4.exists() -> toItem(ctx, id, mp4)
+            else -> null
+        }
     }
 
     /** Removes the entry from the in-app gallery. The copy in the system gallery is left alone. */
@@ -90,7 +119,7 @@ object PhotoStore {
         item.image.delete()
         File(dir(ctx, "stamped"), "$id.txt").delete()
         item.thumb.delete()
-        if (list(ctx).none { it.originalKey == item.originalKey }) {
+        if (item.originalKey.isNotEmpty() && list(ctx).none { it.originalKey == item.originalKey }) {
             File(dir(ctx, "originals"), "${item.originalKey}.jpg").delete()
         }
     }
@@ -103,7 +132,8 @@ object PhotoStore {
             image = file,
             thumb = File(dir(ctx, "thumbs"), "$id.jpg"),
             originalKey = lines.getOrElse(0) { "" },
-            fields = StampFields.from(lines.drop(1))
+            fields = StampFields.from(lines.drop(1)),
+            isVideo = file.extension == "mp4"
         )
     }
 }

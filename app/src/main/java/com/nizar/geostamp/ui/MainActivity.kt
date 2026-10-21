@@ -10,7 +10,6 @@ import android.location.Geocoder
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -18,6 +17,7 @@ import android.os.Looper
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -42,24 +42,12 @@ import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.media3.common.Effect
-import androidx.media3.common.MediaItem
-import androidx.media3.common.audio.AudioProcessor
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.effect.BitmapOverlay
-import androidx.media3.effect.OverlayEffect
-import androidx.media3.effect.TextureOverlay
-import androidx.media3.transformer.Composition
-import androidx.media3.transformer.EditedMediaItem
-import androidx.media3.transformer.Effects
-import androidx.media3.transformer.ExportException
-import androidx.media3.transformer.ExportResult
-import androidx.media3.transformer.Transformer
-import com.google.common.collect.ImmutableList
 import com.nizar.geostamp.R
 import com.nizar.geostamp.data.PhotoStore
 import com.nizar.geostamp.data.StampFields
+import com.nizar.geostamp.data.VideoInfo
 import com.nizar.geostamp.render.Stamper
+import com.nizar.geostamp.render.VideoWatermarker
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -93,6 +81,7 @@ class MainActivity : AppCompatActivity() {
     private var imageCapture: ImageCapture? = null
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
+    private var cancelWatermark: (() -> Unit)? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private var videoMode = false
     private var flashMode = ImageCapture.FLASH_MODE_OFF
@@ -221,6 +210,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         try { locationManager.removeUpdates(locationListener) } catch (_: Exception) {}
+        cancelWatermark?.invoke()
     }
 
     private fun startAll() {
@@ -412,12 +402,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val vc = videoCapture ?: return
-        val fields = currentFields(Date())  // the stamp is fixed at the moment recording starts
+        val startTime = Date()
+        val fields = currentFields(startTime)
         val raw = File(cacheDir, "rec_${System.currentTimeMillis()}.mp4")
         var pending = vc.output.prepareRecording(this, FileOutputOptions.Builder(raw).build())
         if (hasPermission(Manifest.permission.RECORD_AUDIO)) pending = pending.withAudioEnabled()
 
-        recStatus.visibility = android.view.View.VISIBLE
+        recStatus.visibility = View.VISIBLE
         recStatus.text = "REC 00:00"
         recording = pending.start(ContextCompat.getMainExecutor(this)) { event ->
             if (event is VideoRecordEvent.Status) {
@@ -427,90 +418,55 @@ class MainActivity : AppCompatActivity() {
                 recording = null
                 updateLabels()
                 if (event.hasError()) {
-                    recStatus.visibility = android.view.View.GONE
+                    recStatus.visibility = View.GONE
                     Toast.makeText(this, "Recording failed (code ${event.error})", Toast.LENGTH_LONG).show()
                     raw.delete()
                 } else {
-                    watermarkVideo(raw, fields)
+                    watermarkVideo(raw, fields, startTime.time)
                 }
             }
         }
         updateLabels()
     }
 
-    /** Burns the watermark into the recorded video, then saves it to Movies/GeoStamp. */
-    @OptIn(UnstableApi::class)
-    private fun watermarkVideo(raw: File, fields: StampFields) {
-        recStatus.visibility = android.view.View.VISIBLE
+    /**
+     * Burns the watermark into the recorded video. The date line starts at the moment recording
+     * began and keeps running with the video. The result goes to the app gallery and Movies/GeoStamp.
+     */
+    private fun watermarkVideo(raw: File, fields: StampFields, startMillis: Long) {
+        recStatus.visibility = View.VISIBLE
         recStatus.text = "Adding watermark..."
 
-        var w = 0
-        var h = 0
-        var rot = 0
-        val retriever = MediaMetadataRetriever()
-        try {
-            retriever.setDataSource(raw.absolutePath)
-            w = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt() ?: 0
-            h = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt() ?: 0
-            rot = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toInt() ?: 0
-        } catch (_: Exception) {
-        } finally {
-            retriever.release()
-        }
-        if (w <= 0 || h <= 0) {
-            finishVideo(raw, null, "Could not read the video size")
+        val probe = VideoInfo.probe(this, Uri.fromFile(raw))
+        if (probe == null) {
+            saveVideo(raw, fields, "Could not read the video size - saved without watermark")
             return
         }
-        if (rot == 90 || rot == 270) { val t = w; w = h; h = t }  // size as shown on screen
-
         val out = File(cacheDir, "wm_${System.currentTimeMillis()}.mp4")
-        try {
-            val overlay = BitmapOverlay.createStaticBitmapOverlay(Stamper.overlayBitmap(w, h, fields.lines()))
-            val effects = Effects(
-                emptyList<AudioProcessor>(),
-                listOf<Effect>(OverlayEffect(ImmutableList.of<TextureOverlay>(overlay)))
-            )
-            val item = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(raw)))
-                .setEffects(effects)
-                .build()
-            val transformer = Transformer.Builder(this)
-                .addListener(object : Transformer.Listener {
-                    override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-                        finishVideo(raw, out, null)
-                    }
-
-                    override fun onError(
-                        composition: Composition,
-                        exportResult: ExportResult,
-                        exportException: ExportException
-                    ) {
-                        finishVideo(raw, null, "Watermark failed: ${exportException.errorCodeName}")
-                    }
-                })
-                .build()
-            transformer.start(item, out.absolutePath)
-        } catch (e: Exception) {
-            finishVideo(raw, null, "Watermark failed: ${e.message}")
+        val spec = VideoWatermarker.ClockSpec(fields.text, startMillis, true, fields.gps, fields.address)
+        cancelWatermark = VideoWatermarker.start(
+            this, Uri.fromFile(raw), out, probe.width, probe.height, spec
+        ) { error ->
+            cancelWatermark = null
+            if (error == null) {
+                raw.delete()
+                saveVideo(out, fields, null)
+            } else {
+                out.delete()
+                saveVideo(raw, fields, "$error - saved without watermark")
+            }
         }
     }
 
-    private fun finishVideo(raw: File, stamped: File?, error: String?) {
-        if (stamped == null) {
-            recStatus.visibility = android.view.View.GONE
-            raw.delete()
-            Toast.makeText(this, error ?: "Video failed", Toast.LENGTH_LONG).show()
-            return
-        }
+    /** Saves [file] into the app gallery and the phone gallery, then shows [warning] or a success message. */
+    private fun saveVideo(file: File, fields: StampFields, warning: String?) {
         thread {
-            val name = "GeoStamp_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".mp4"
-            val ok = Stamper.saveVideoToGallery(this, stamped, name)
-            raw.delete()
-            stamped.delete()
+            PhotoStore.saveVideoResult(this, file, fields)
             runOnUiThread {
-                recStatus.visibility = android.view.View.GONE
+                recStatus.visibility = View.GONE
                 Toast.makeText(
                     this,
-                    if (ok) "Video saved to Movies/GeoStamp" else "Saving the video failed",
+                    warning ?: "Video saved (app gallery + Movies/GeoStamp)",
                     Toast.LENGTH_LONG
                 ).show()
             }

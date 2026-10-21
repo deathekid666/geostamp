@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.net.Uri
 import android.provider.MediaStore
 import java.io.File
 
@@ -62,13 +63,16 @@ object Stamper {
             put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
             put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/GeoStamp")
+            put(MediaStore.Images.Media.IS_PENDING, 1)
         }
         val uri = ctx.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
             ?: return false
         return try {
             ctx.contentResolver.openOutputStream(uri)?.use { bmp.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+            publish(ctx, uri, MediaStore.Images.Media.IS_PENDING)
             true
         } catch (_: Exception) {
+            ctx.contentResolver.delete(uri, null, null)
             false
         }
     }
@@ -78,6 +82,7 @@ object Stamper {
             put(MediaStore.Video.Media.DISPLAY_NAME, fileName)
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
             put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/GeoStamp")
+            put(MediaStore.Video.Media.IS_PENDING, 1)
         }
         val uri = ctx.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
             ?: return false
@@ -85,9 +90,17 @@ object Stamper {
             ctx.contentResolver.openOutputStream(uri)?.use { out ->
                 file.inputStream().use { it.copyTo(out) }
             }
+            publish(ctx, uri, MediaStore.Video.Media.IS_PENDING)
             true
         } catch (_: Exception) {
+            ctx.contentResolver.delete(uri, null, null)
             false
         }
+    }
+
+    /** Makes a finished file visible to the phone's gallery app. */
+    private fun publish(ctx: Context, uri: Uri, pendingColumn: String) {
+        val done = ContentValues().apply { put(pendingColumn, 0) }
+        ctx.contentResolver.update(uri, done, null, null)
     }
 }
